@@ -466,7 +466,7 @@ function getMemoryDb() {
     ],
     qr_tickets: defaultQrTickets,
     checkins: [],
-    admins: [{ id: 'admin-system', email: 'admin@eventpro.com', name: 'Administrator', role: 'super_admin' }],
+    admins: [{ id: 'admin-system', email: 'admin@eventpro.com', name: 'Administrator', role: 'super_admin', password_hash: '' }],
     notifications: [],
     reschedules: [],
     audit_logs: [],
@@ -549,6 +549,22 @@ function getMemoryDb() {
         run: (...params: any[]) => {
           for (const tableName of Object.keys(tables)) {
             if (lower.includes(`insert into ${tableName}`)) {
+              if (tableName === 'settings' && params.length >= 2) {
+                const existing = tables.settings.find(s => s.key === params[0])
+                if (existing) {
+                  existing.value = params[1]
+                } else {
+                  tables.settings.push({ key: params[0], value: params[1] })
+                }
+                return { changes: 1, lastInsertRowid: tables.settings.length }
+              }
+              if (tableName === 'admins') {
+                const existing = tables.admins.find(a => a.email === params[1] || a.id === params[0])
+                if (existing) {
+                  if (params[2]) existing.password_hash = params[2]
+                  return { changes: 1, lastInsertRowid: 1 }
+                }
+              }
               const record: any = { id: uuidv4(), created_at: new Date().toISOString() }
               if (params.length > 0) {
                 params.forEach((val, idx) => { record[`col_${idx}`] = val })
@@ -558,6 +574,17 @@ function getMemoryDb() {
               return { changes: 1, lastInsertRowid: tables[tableName].length }
             }
             if (lower.includes(`update ${tableName}`)) {
+              if (tableName === 'admins' && lower.includes('password_hash')) {
+                const newHash = params[0]
+                const emailOrId = params[params.length - 1]
+                const adm = tables.admins.find(a => a.email === emailOrId || a.id === emailOrId)
+                if (adm) {
+                  adm.password_hash = newHash
+                } else if (tables.admins[0]) {
+                  tables.admins[0].password_hash = newHash
+                }
+                return { changes: 1, lastInsertRowid: 1 }
+              }
               return { changes: 1, lastInsertRowid: 1 }
             }
             if (lower.includes(`delete from ${tableName}`)) {

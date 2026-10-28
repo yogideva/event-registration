@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   LayoutDashboard, CalendarDays, PlusCircle, Users, CreditCard, QrCode,
   BarChart3, Settings, Menu, X, ChevronRight, LogOut, Bell, GripVertical,
-  Eye, EyeOff
+  Eye, EyeOff, Key
 } from 'lucide-react'
 import { cn } from './utils'
 import { signOut } from 'next-auth/react'
@@ -134,7 +134,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="p-4 border-t border-gray-200">
           {sidebarOpen ? (
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-indigo-700 text-xs font-semibold">
                   {session.user?.name?.[0] || 'A'}
                 </span>
@@ -143,14 +143,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-sm font-medium text-gray-900 truncate">{session.user?.name}</p>
                 <p className="text-xs text-gray-500 truncate">{session.user?.email}</p>
               </div>
-              <button onClick={() => signOut({ callbackUrl: '/admin/login' })} className="p-1 hover:text-red-500 text-gray-400">
+              <Link
+                href="/admin/settings?tab=security"
+                className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 text-gray-400 rounded-lg transition-colors"
+                title="Change Password"
+              >
+                <Key size={16} />
+              </Link>
+              <button
+                onClick={() => signOut({ callbackUrl: '/admin/login' })}
+                className="p-1.5 hover:bg-red-50 hover:text-red-500 text-gray-400 rounded-lg transition-colors"
+                title="Log Out"
+              >
                 <LogOut size={16} />
               </button>
             </div>
           ) : (
-            <button onClick={() => signOut({ callbackUrl: '/admin/login' })} className="w-full flex justify-center p-1 hover:text-red-500 text-gray-400">
-              <LogOut size={18} />
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <Link
+                href="/admin/settings?tab=security"
+                className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 text-gray-400 rounded-lg transition-colors"
+                title="Change Password"
+              >
+                <Key size={18} />
+              </Link>
+              <button
+                onClick={() => signOut({ callbackUrl: '/admin/login' })}
+                className="p-1.5 hover:bg-red-50 hover:text-red-500 text-gray-400 rounded-lg transition-colors"
+                title="Log Out"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -158,11 +182,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main */}
       <div className={cn('flex-1 flex flex-col transition-all duration-300', sidebarOpen ? 'ml-64' : 'ml-16')}>
         {/* Top bar */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 gap-4 sticky top-0 z-40">
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 gap-3 sticky top-0 z-40">
           <div className="flex-1" />
-          <button className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
-            <Bell size={18} />
-          </button>
+          <Link
+            href="/admin/settings?tab=security"
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 px-3 py-1.5 rounded-lg border border-gray-200 transition-colors shadow-2xs"
+            title="Change Admin Password"
+          >
+            <Key size={14} className="text-indigo-600" />
+            <span>Change Password</span>
+          </Link>
           <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
             <span className="text-indigo-700 text-xs font-semibold">{session.user?.name?.[0] || 'A'}</span>
           </div>

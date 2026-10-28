@@ -37,24 +37,31 @@ export const authOptions: NextAuthOptions = {
         const envEmail = process.env.ADMIN_EMAIL || 'admin@eventpro.com'
         const envPass = process.env.ADMIN_PASSWORD || 'admin123'
 
-        // 1. Direct validation for default admin - zero database dependency
-        if (credentials.email === envEmail && credentials.password === envPass) {
-          return { id: 'admin-system', email: envEmail, name: 'Administrator', role: 'super_admin' }
-        }
-
-        // 2. Fallback check for custom admin users stored in database
+        // 1. Check for custom/updated password in database or settings
         try {
           const { getDb } = require('./db')
           const db = getDb()
           const admin = db.prepare('SELECT * FROM admins WHERE email = ?').get(credentials.email) as any
-          if (!admin) return null
-          const valid = await bcrypt.compare(credentials.password, admin.password_hash)
-          if (!valid) return null
-          return { id: admin.id, email: admin.email, name: admin.name, role: admin.role }
+          const settingRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_password_hash') as any
+          const activeHash = (admin && admin.password_hash) ? admin.password_hash : (credentials.email === envEmail && settingRow ? settingRow.value : '')
+
+          if (activeHash) {
+            const valid = await bcrypt.compare(credentials.password, activeHash)
+            if (valid) {
+              return { id: admin?.id || 'admin-system', email: credentials.email, name: admin?.name || 'Administrator', role: admin?.role || 'super_admin' }
+            }
+            return null
+          }
         } catch (e) {
-          console.error('Auth DB lookup error:', e)
-          return null
+          // DB lookup error ignored
         }
+
+        // 2. Direct default admin fallback if password has not been changed yet
+        if (credentials.email === envEmail && credentials.password === envPass) {
+          return { id: 'admin-system', email: envEmail, name: 'Administrator', role: 'super_admin' }
+        }
+
+        return null
       },
     }),
   ],

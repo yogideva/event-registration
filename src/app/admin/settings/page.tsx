@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Save, Upload, X, Loader2, CheckCircle, GripVertical, Eye, EyeOff } from 'lucide-react'
+import { Save, Upload, X, Loader2, CheckCircle, GripVertical, Eye, EyeOff, Lock, ShieldCheck, Key } from 'lucide-react'
 
 const TABS = [
   { key: 'org', label: 'Organization' },
@@ -9,6 +9,7 @@ const TABS = [
   { key: 'policies', label: 'Policies' },
   { key: 'social', label: 'Social Media' },
   { key: 'navigation', label: 'Navigation' },
+  { key: 'security', label: 'Security & Password' },
 ]
 
 function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
@@ -62,6 +63,27 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
 
+  // Password change state
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [showCurrentPw, setShowCurrentPw] = useState(false)
+  const [showNewPw, setShowNewPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState('')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const t = params.get('tab')
+      if (t && ['org', 'branding', 'payment', 'policies', 'social', 'navigation', 'security'].includes(t)) {
+        setTab(t)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     fetch('/api/settings').then(r => r.json()).then(d => setSettings(d))
     fetch('/api/sidebar').then(r => r.json()).then(d => setSettings(prev => { setSidebar(Array.isArray(d) ? d : []); return prev }))
@@ -72,6 +94,52 @@ export default function SettingsPage() {
   }, [])
 
   function set(key: string, value: string) { setSettings(s => ({ ...s, [key]: value })) }
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    setPwSuccess('')
+
+    if (!currentPw || !newPw || !confirmPw) {
+      setPwError('Please fill in all password fields.')
+      return
+    }
+    if (newPw !== confirmPw) {
+      setPwError('New password and confirm password do not match.')
+      return
+    }
+    if (newPw.length < 6) {
+      setPwError('New password must be at least 6 characters long.')
+      return
+    }
+
+    setPwLoading(true)
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: currentPw,
+          newPassword: newPw,
+          confirmPassword: confirmPw,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPwError(data.error || 'Failed to update password.')
+      } else {
+        setPwSuccess(data.message || 'Password updated successfully!')
+        setToast('Password updated successfully!')
+        setCurrentPw('')
+        setNewPw('')
+        setConfirmPw('')
+      }
+    } catch (err: any) {
+      setPwError('Network error. Please try again.')
+    } finally {
+      setPwLoading(false)
+    }
+  }
 
   async function save(keys?: string[]) {
     setSaving(true)
@@ -242,6 +310,120 @@ export default function SettingsPage() {
           <button onClick={saveSidebar} disabled={saving} className="mt-4 flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-60 font-medium text-sm">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Navigation
           </button>
+        </div>
+      )}
+
+      {/* Security & Password */}
+      {tab === 'security' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+          <div className="flex items-start gap-4 pb-4 border-b border-gray-100">
+            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Lock size={24} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Change Admin Password</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Update your login password for the EventPro Admin Portal.
+              </p>
+            </div>
+          </div>
+
+          {pwError && (
+            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg flex items-center gap-2">
+              <X size={16} className="flex-shrink-0" />
+              <span>{pwError}</span>
+            </div>
+          )}
+
+          {pwSuccess && (
+            <div className="p-3.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
+              <CheckCircle size={16} className="flex-shrink-0" />
+              <span>{pwSuccess}</span>
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordChange} className="space-y-4 max-w-lg">
+            <div>
+              <label className={lbl}>Current Password</label>
+              <div className="relative">
+                <input
+                  type={showCurrentPw ? 'text' : 'password'}
+                  className={`${inp} pr-10`}
+                  placeholder="Enter your current password"
+                  value={currentPw}
+                  onChange={e => setCurrentPw(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPw(!showCurrentPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showCurrentPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className={lbl}>New Password</label>
+              <div className="relative">
+                <input
+                  type={showNewPw ? 'text' : 'password'}
+                  className={`${inp} pr-10`}
+                  placeholder="Enter new password (min. 6 characters)"
+                  value={newPw}
+                  onChange={e => setNewPw(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPw(!showNewPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className={lbl}>Confirm New Password</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPw ? 'text' : 'password'}
+                  className={`${inp} pr-10`}
+                  placeholder="Re-enter your new password"
+                  value={confirmPw}
+                  onChange={e => setConfirmPw(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPw(!showConfirmPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={pwLoading}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-60 font-medium text-sm transition-colors shadow-sm"
+              >
+                {pwLoading ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                {pwLoading ? 'Updating Password...' : 'Update Password'}
+              </button>
+            </div>
+          </form>
+
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 space-y-1">
+            <p className="font-semibold text-gray-700">Security Guidance:</p>
+            <p>• Passwords must be at least 6 characters long.</p>
+            <p>• Your new password becomes active immediately for all future sign-ins.</p>
+            <p>• Keep your credentials secure and never share them with unauthorized persons.</p>
+          </div>
         </div>
       )}
     </div>
