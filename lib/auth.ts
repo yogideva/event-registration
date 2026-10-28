@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getDb } from './db'
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || 'eventpro-secret-key-change-in-production',
   session: { strategy: 'jwt', maxAge: 24 * 60 * 60 },
   pages: { signIn: '/admin/login' },
   callbacks: {
