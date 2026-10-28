@@ -16,19 +16,27 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    const timer = setTimeout(() => {
+      setLoading(false)
+      setError('Request timed out. Please try again.')
+    }, 12000)
+
     try {
       const result = await signIn('credentials', {
-        email,
-        password,
+        email: email.trim(),
+        password: password.trim(),
         redirect: false,
       })
-      if (result?.error) {
+      clearTimeout(timer)
+      if (!result || result.error) {
         setLoading(false)
         setError('Invalid email or password')
       } else {
-        window.location.href = '/admin'
+        window.location.replace('/admin')
       }
     } catch (err: any) {
+      clearTimeout(timer)
       setLoading(false)
       setError('An error occurred during sign in. Please try again.')
     }

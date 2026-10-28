@@ -39,24 +39,12 @@ export const authOptions: NextAuthOptions = {
 
         // 1. Direct validation for default admin - zero database dependency
         if (credentials.email === envEmail && credentials.password === envPass) {
-          try {
-            const db = getDb()
-            let admin = db.prepare('SELECT * FROM admins WHERE email = ?').get(credentials.email) as any
-            if (!admin) {
-              const hash = await bcrypt.hash(credentials.password, 10)
-              db.prepare(`
-                INSERT INTO admins (id, email, password_hash, name, role)
-                VALUES (?, ?, ?, ?, ?)
-              `).run(uuidv4(), credentials.email, hash, 'Administrator', 'super_admin')
-            }
-          } catch (e) {
-            // DB logging error ignored in serverless cold start
-          }
           return { id: 'admin-system', email: envEmail, name: 'Administrator', role: 'super_admin' }
         }
 
         // 2. Fallback check for custom admin users stored in database
         try {
+          const { getDb } = require('./db')
           const db = getDb()
           const admin = db.prepare('SELECT * FROM admins WHERE email = ?').get(credentials.email) as any
           if (!admin) return null

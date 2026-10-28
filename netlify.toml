@@ -4,6 +4,8 @@
 [build.environment]
   NODE_VERSION = "20"
   SECRETS_SCAN_ENABLED = "false"
+  NEXTAUTH_URL = "https://eventregister1.netlify.app"
+  NEXTAUTH_SECRET = "eventpro-production-secret-auth-key-32chars"
 
 [[redirects]]
   from = "/"

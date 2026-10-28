@@ -2,44 +2,44 @@ import path from 'path'
 import fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 
-const isServerless = !!(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL)
-const DB_PATH = process.env.DATABASE_PATH || (isServerless ? '/tmp/eventplatform.db' : './data/eventplatform.db')
-const resolvedPath = path.isAbsolute(DB_PATH) ? DB_PATH : path.resolve(process.cwd(), DB_PATH)
-
-const dataDir = path.dirname(resolvedPath)
-if (!fs.existsSync(dataDir)) {
-  try {
-    fs.mkdirSync(dataDir, { recursive: true })
-  } catch (e) {
-    // Ignore read-only fs in serverless
-  }
-}
+const isServerless = !!(
+  process.env.NETLIFY ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT ||
+  process.env.VERCEL ||
+  process.env.NODE_ENV === 'production'
+)
 
 let dbInstance: any
 
 export function getDb(): any {
+  if (isServerless) {
+    if (!dbInstance) {
+      dbInstance = getMemoryDb()
+    }
+    return dbInstance
+  }
+
   if (!dbInstance) {
     let DatabaseClass: any
     try {
       DatabaseClass = require('better-sqlite3')
-    } catch (e) {
-      console.warn('better-sqlite3 require failed in serverless, switching to resilient memory store:', e)
-    }
-
-    if (DatabaseClass) {
-      try {
-        const nativeDb = new DatabaseClass(resolvedPath)
-        nativeDb.pragma('journal_mode = WAL')
-        nativeDb.pragma('foreign_keys = ON')
-        initializeSchema(nativeDb)
-        dbInstance = nativeDb
-        return dbInstance
-      } catch (err) {
-        console.warn('Failed to initialize SQLite on disk, switching to resilient memory store:', err)
+      const DB_PATH = process.env.DATABASE_PATH || './data/eventplatform.db'
+      const resolvedPath = path.isAbsolute(DB_PATH) ? DB_PATH : path.resolve(process.cwd(), DB_PATH)
+      const dataDir = path.dirname(resolvedPath)
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true })
       }
+      const nativeDb = new DatabaseClass(resolvedPath)
+      nativeDb.pragma('journal_mode = WAL')
+      nativeDb.pragma('foreign_keys = ON')
+      initializeSchema(nativeDb)
+      dbInstance = nativeDb
+      return dbInstance
+    } catch (err) {
+      console.warn('better-sqlite3 not available, using in-memory store:', err)
+      dbInstance = getMemoryDb()
     }
-
-    dbInstance = getMemoryDb()
   }
   return dbInstance
 }
@@ -460,6 +460,10 @@ function getMemoryDb() {
     custom_fields: defaultFields,
     registrations: defaultRegistrations,
     payments: [],
+    refunds: [],
+    attendees: [
+      { id: 'att-demo-001', name: 'Alex Morgan', email: 'alex.morgan@techcorp.io', phone: '+91 9876543210' }
+    ],
     qr_tickets: defaultQrTickets,
     checkins: [],
     admins: [{ id: 'admin-system', email: 'admin@eventpro.com', name: 'Administrator', role: 'super_admin' }],
@@ -484,7 +488,7 @@ function getMemoryDb() {
               if (lower.includes('where event_id = ?') && params.length > 0) {
                 rows = rows.filter(r => r.event_id === params[0])
               }
-              if (lower.includes('order by sort_order asc')) {
+              if (lower.includes('order by sort_order asc') || lower.includes('order by sort_order')) {
                 rows.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
               }
               if (lower.includes('count(*)')) {
@@ -503,27 +507,43 @@ function getMemoryDb() {
               if (lower.includes('count(*)')) {
                 return { c: rows.length }
               }
+              if (lower.includes('max(')) {
+                const maxVal = rows.reduce((max, r) => Math.max(max, r.sort_order || 0), 0)
+                return { m: maxVal }
+              }
+              if (lower.includes('sum(')) {
+                return { s: 0 }
+              }
               if (lower.includes('where slug = ?') && params.length > 0) {
                 return rows.find(r => r.slug === params[0]) || null
               }
               if ((lower.includes('where e.id = ? or e.slug = ?') || lower.includes('id = ? or slug = ?')) && params.length > 0) {
                 return rows.find(r => r.id === params[0] || r.slug === params[0] || (params[1] && (r.id === params[1] || r.slug === params[1]))) || null
               }
-              if (lower.includes('where id = ?') && params.length > 0) {
+              if (lower.includes('where id = ?') || lower.includes('where id=?')) {
                 return rows.find(r => r.id === params[0]) || null
               }
-              if (lower.includes('where email = ?') && params.length > 0) {
+              if (lower.includes('where email = ?') || lower.includes('where email=?')) {
                 return rows.find(r => r.email === params[0]) || null
               }
-              if (lower.includes('where registration_number = ?') && params.length > 0) {
+              if (lower.includes('where key = ?') || lower.includes('where key=?')) {
+                return rows.find(r => r.key === params[0]) || null
+              }
+              if (lower.includes('where registration_number = ?') || lower.includes('where registration_number=?')) {
                 return rows.find(r => r.registration_number === params[0] || r.id === params[0]) || null
               }
-              if (lower.includes('where ticket_code = ?') && params.length > 0) {
+              if (lower.includes('where registration_id = ?') || lower.includes('where registration_id=?')) {
+                return rows.find(r => r.registration_id === params[0]) || null
+              }
+              if (lower.includes('where ticket_code = ?') || lower.includes('where ticket_code=?')) {
                 return rows.find(r => r.ticket_code === params[0]) || null
               }
               return rows[0] || null
             }
           }
+          if (lower.includes('count(*)')) return { c: 0 }
+          if (lower.includes('sum(')) return { s: 0 }
+          if (lower.includes('max(')) return { m: 0 }
           return null
         },
         run: (...params: any[]) => {
