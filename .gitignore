@@ -34,3 +34,4 @@ data/*.db-shm
 
 # Tools
 git_bin/
+push-to-github.bat
